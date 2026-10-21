@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import time
 
+from openai import RateLimitError
+
 from ragcmp.cache import Cache
 
 INSTRUCTIONS = (
@@ -27,6 +29,27 @@ class Generator:
         self.max_output_tokens = g["max_output_tokens"]
         self.cache = cache
         self._client = client
+        # OpenRouter limits new accounts (20 req/min on gpt-6-luna); pace calls and retry on 429.
+        self.min_interval = 60.0 / g["max_rpm"] if g.get("max_rpm") else 0.0
+        self.max_retries = g.get("max_retries", 6)
+        self.retry_wait_s = g.get("retry_wait_s", 15.0)
+        self._last_call = 0.0
+
+    def _throttle(self) -> None:
+        wait = self._last_call + self.min_interval - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        self._last_call = time.monotonic()
+
+    def _create_with_retry(self, **kwargs):
+        for attempt in range(self.max_retries + 1):
+            self._throttle()
+            try:
+                return self.client.chat.completions.create(**kwargs)
+            except RateLimitError:
+                if attempt == self.max_retries:
+                    raise
+                time.sleep(self.retry_wait_s * (attempt + 1))
 
     @property
     def client(self):
@@ -47,7 +70,7 @@ class Generator:
         if self.reasoning_effort:
             kwargs["extra_body"] = {"reasoning": {"effort": self.reasoning_effort}}
         t0 = time.perf_counter()
-        resp = self.client.chat.completions.create(**kwargs)
+        resp = self._create_with_retry(**kwargs)
         cost = getattr(resp.usage, "cost", None)
         return {
             "answer": (resp.choices[0].message.content or "").strip(),

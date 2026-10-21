@@ -40,6 +40,30 @@ def test_generator_params_and_cache(tmp_path):
     assert cached2 and len(fake.calls) == 1
 
 
+def test_generator_retries_on_429_and_throttles(tmp_path, monkeypatch):
+    import httpx
+    from openai import RateLimitError
+
+    sleeps = []
+    monkeypatch.setattr("ragcmp.generate.time.sleep", lambda s: sleeps.append(s))
+    resp429 = httpx.Response(429, request=httpx.Request("POST", "http://x"))
+
+    class Flaky(FakeCompletions):
+        def create(self, **kw):
+            if len(self.calls) == 0:
+                self.calls.append(kw)
+                raise RateLimitError("rate limited", response=resp429, body=None)
+            return super().create(**kw)
+
+    fake = Flaky()
+    cfg = {"generation": {**CFG_GEN["generation"], "max_rpm": 20, "retry_wait_s": 5}}
+    g = Generator(cfg, Cache(tmp_path / "c.sqlite"), client=SimpleNamespace(chat=SimpleNamespace(completions=fake)))
+    out, _ = g.answer("Q?", [{"text": "a"}])
+    assert out["answer"] == "Paris" and len(fake.calls) == 2
+    assert 5 in sleeps  # backed off once after the 429
+    assert g.min_interval == 3.0
+
+
 def _records(variant_quality: float, n: int = 40, seed: int = 0):
     rng = random.Random(seed)
     recs = []

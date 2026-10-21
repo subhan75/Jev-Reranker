@@ -46,6 +46,14 @@ Metrics: Recall@1/3/5/30, MRR, nDCG@5, **both-gold@5** (both supporting paragrap
 rerank latency, context tokens and cost. Differences are reported as paired bootstrap 95% CIs (10k resamples),
 with exact McNemar tests for binary metrics.
 
+## Caveats
+
+- **Jev scores are not bit-for-bit deterministic.** They come back at 2-decimal resolution and vary by up to
+  ~0.1 between identical calls; in spot checks gold-paragraph positions were stable and only near-zero tail
+  passages reshuffled. Ties are broken by first-stage order. The cache freezes one sample per query, so a
+  given run is reproducible from `.cache/`.
+- First-stage recall caps both rerankers: a gold paragraph missing from the top-30 cannot be recovered.
+
 ## Results
 
 _Pending: run `eval --split test`._

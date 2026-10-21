@@ -39,6 +39,9 @@ generation:
   model: openai/gpt-6-luna
   reasoning_effort: none
   max_output_tokens: 64
+  max_rpm: 18          # OpenRouter new-account limit is 20 req/min on this model; raise if lifted
+  max_retries: 6
+  retry_wait_s: 15
   # USD per 1M tokens; fallback estimate only (OpenRouter's usage.cost is used when present)
   price_in: 0.10
   price_out: 0.50
