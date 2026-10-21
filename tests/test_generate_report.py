@@ -9,14 +9,15 @@ from ragcmp.report import build_report
 CFG_GEN = {"generation": {"model": "fake", "reasoning_effort": "none", "max_output_tokens": 16}}
 
 
-class FakeResponses:
+class FakeCompletions:
     def __init__(self):
         self.calls = []
 
     def create(self, **kw):
         self.calls.append(kw)
-        return SimpleNamespace(output_text=" Paris \n", model="fake-1",
-                               usage=SimpleNamespace(input_tokens=50, output_tokens=2))
+        msg = SimpleNamespace(message=SimpleNamespace(content=" Paris \n"))
+        return SimpleNamespace(choices=[msg], model="fake-1",
+                               usage=SimpleNamespace(prompt_tokens=50, completion_tokens=2, cost=0.00001))
 
 
 def test_build_input_numbers_passages():
@@ -25,12 +26,16 @@ def test_build_input_numbers_passages():
 
 
 def test_generator_params_and_cache(tmp_path):
-    fake = FakeResponses()
-    g = Generator(CFG_GEN, Cache(tmp_path / "c.sqlite"), client=SimpleNamespace(responses=fake))
+    fake = FakeCompletions()
+    client = SimpleNamespace(chat=SimpleNamespace(completions=fake))
+    g = Generator(CFG_GEN, Cache(tmp_path / "c.sqlite"), client=client)
     out, cached = g.answer("Q?", [{"text": "a"}])
     assert out["answer"] == "Paris" and not cached
-    assert fake.calls[0]["reasoning"] == {"effort": "none"}
-    assert fake.calls[0]["max_output_tokens"] == 16
+    assert out["input_tokens"] == 50 and out["cost_usd"] == 0.00001
+    call = fake.calls[0]
+    assert call["extra_body"] == {"reasoning": {"effort": "none"}}
+    assert call["max_tokens"] == 16
+    assert [m["role"] for m in call["messages"]] == ["system", "user"]
     _, cached2 = g.answer("Q?", [{"text": "a"}])
     assert cached2 and len(fake.calls) == 1
 

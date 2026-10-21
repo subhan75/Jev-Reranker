@@ -10,8 +10,12 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m pip install -e .
-copy .env.example .env   # then fill in OPENAI_API_KEY and TYPESAFE_API_KEY
+copy .env.example .env   # then fill in OPENROUTER_API_KEY
 ```
+
+All models run through [OpenRouter](https://openrouter.ai/docs) with one key. Embeddings and generation use
+OpenRouter's OpenAI-compatible API (`https://openrouter.ai/api/v1`). Jev uses the TypeSafe SDK with
+`base_url="https://openrouter.ai/api"` (System One endpoint). Endpoints and model IDs live in `config.yaml`.
 
 ## Run
 
@@ -32,9 +36,11 @@ All paid calls (embeddings, Jev, generation) are cached in `.cache/cache.sqlite`
 |---|---|
 | Data | HotpotQA distractor, validation split. Seed 42: 50 dev questions (tuning) + 300 test questions |
 | Corpus | All paragraphs of the 350 questions, pooled and de-duplicated by title (3,476 paragraphs) |
-| First stage | OpenAI `text-embedding-3-small` -> Chroma (cosine), top-30. Identical candidates for every variant |
-| Variants | `vanilla` (vector order), `bge` (`BAAI/bge-reranker-base`), `jev` (one request per query, one Noul per passage, ranked by probability) |
-| Generator | OpenAI `gpt-6-luna`, reasoning effort `none`, top-5 passages, same prompt for every variant |
+| First stage | `openai/text-embedding-3-small` -> Chroma (cosine), top-30. Identical candidates for every variant |
+| Variants | `vanilla` (vector order), `bge` (`BAAI/bge-reranker-base`, local), `jev` (`typesafe/jev-1.14`; one request per query, one Noul per passage, ranked by probability) |
+| Generator | `openai/gpt-6-luna`, reasoning effort `none`, top-5 passages, same prompt for every variant |
+
+Costs in the report use OpenRouter's billed `usage.cost` when it is returned, otherwise a token-price estimate from `config.yaml`.
 
 Metrics: Recall@1/3/5/30, MRR, nDCG@5, **both-gold@5** (both supporting paragraphs in the top 5), HotpotQA EM/F1,
 rerank latency, context tokens and cost. Differences are reported as paired bootstrap 95% CIs (10k resamples),

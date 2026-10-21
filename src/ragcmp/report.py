@@ -20,6 +20,12 @@ def _pct(xs, q):
     return float(np.percentile(xs, q)) if xs else 0.0
 
 
+def _billed(recs: list[dict], key: str) -> float | None:
+    """Sum of provider-reported cost, or None unless every record has one."""
+    vals = [r.get(key) for r in recs]
+    return float(sum(vals)) if vals and all(v is not None for v in vals) else None
+
+
 def summarize_variant(recs: list[dict], cfg: dict) -> dict:
     pool_key = f"recall@{cfg['retrieval']['top_k']}"
     metrics = [m for m in [pool_key] + RETRIEVAL + ANSWER if m in recs[0]]
@@ -27,13 +33,15 @@ def summarize_variant(recs: list[dict], cfg: dict) -> dict:
     lat = [r["rerank_latency_s"] for r in recs]
     s["rerank_p50_s"], s["rerank_p95_s"] = _pct(lat, 50), _pct(lat, 95)
     jev_tokens = sum(r["rerank_input_tokens"] for r in recs)
-    s["rerank_cost_usd"] = jev_tokens / 1e6 * cfg["pricing"]["jev_per_m"]
+    billed = _billed(recs, "rerank_cost_usd") if jev_tokens else None
+    s["rerank_cost_usd"] = billed if billed is not None else jev_tokens / 1e6 * cfg["pricing"]["jev_per_m"]
     if "gen_input_tokens" in recs[0]:
         g = cfg["generation"]
         tin = sum(r["gen_input_tokens"] for r in recs)
         tout = sum(r["gen_output_tokens"] for r in recs)
         s["ctx_tokens_mean"] = tin / len(recs)
-        s["gen_cost_usd"] = tin / 1e6 * g["price_in"] + tout / 1e6 * g["price_out"]
+        billed = _billed(recs, "gen_cost_usd")
+        s["gen_cost_usd"] = billed if billed is not None else tin / 1e6 * g["price_in"] + tout / 1e6 * g["price_out"]
         s["gen_p50_s"] = _pct([r["gen_latency_s"] for r in recs], 50)
     return s
 

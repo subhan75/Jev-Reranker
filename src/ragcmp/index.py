@@ -2,19 +2,26 @@
 from __future__ import annotations
 
 import chromadb
-from openai import OpenAI
 from tqdm import tqdm
 
-from ragcmp.cache import Cache
+from ragcmp.cache import Cache, make_key
 
 
 class Embedder:
-    def __init__(self, cfg: dict, cache: Cache, client: OpenAI | None = None):
+    def __init__(self, cfg: dict, cache: Cache, client=None):
+        self.cfg = cfg
         self.model = cfg["embedding"]["model"]
         self.batch_size = cfg["embedding"]["batch_size"]
         self.cache = cache
-        self.client = client or OpenAI()
+        self._client = client
         self.tokens = 0
+
+    @property
+    def client(self):
+        if self._client is None:
+            from ragcmp.clients import openai_client
+            self._client = openai_client(self.cfg)
+        return self._client
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         out: list[list[float] | None] = [None] * len(texts)
@@ -35,7 +42,6 @@ class Embedder:
         return out  # type: ignore[return-value]
 
     def _key(self, text: str) -> str:
-        from ragcmp.cache import make_key
         return make_key("emb:" + self.model, text)
 
 

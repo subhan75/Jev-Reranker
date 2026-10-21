@@ -8,8 +8,15 @@ paths:
   cache_dir: .cache
   results_dir: results
 
+provider:
+  # All models are served through OpenRouter with one key.
+  api_key_env: OPENROUTER_API_KEY
+  base_url: https://openrouter.ai/api/v1      # OpenAI-compatible: chat completions + embeddings
+  jev_base_url: https://openrouter.ai/api     # TypeSafe SDK appends /v1/systemone
+  app_title: ragcmp
+
 embedding:
-  model: text-embedding-3-small
+  model: openai/text-embedding-3-small
   batch_size: 256
 
 retrieval:
@@ -23,16 +30,16 @@ rerank:
     batch_size: 32
     max_length: 512
   jev:
-    model: jev-latest
+    model: typesafe/jev-1.14   # pinned for reproducibility (~typesafe/jev-latest floats)
     instructions: >-
       Does `passages[{i}]` contain information needed to answer `query`,
       either directly or as a bridge fact that leads to the answer?
 
 generation:
-  model: gpt-6-luna
+  model: openai/gpt-6-luna
   reasoning_effort: none
   max_output_tokens: 64
-  # USD per 1M tokens, for cost reporting
+  # USD per 1M tokens; fallback estimate only (OpenRouter's usage.cost is used when present)
   price_in: 0.10
   price_out: 0.50
 

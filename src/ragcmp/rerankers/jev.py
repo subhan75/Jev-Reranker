@@ -13,6 +13,7 @@ class JevReranker(Reranker):
 
     def __init__(self, cfg: dict, cache: Cache, client=None):
         c = cfg["rerank"]["jev"]
+        self.cfg = cfg
         self.model = c["model"]
         self.instructions = " ".join(c["instructions"].split())
         self.cache = cache
@@ -21,8 +22,8 @@ class JevReranker(Reranker):
     @property
     def client(self):
         if self._client is None:
-            from typesafe_sdk import TypeSafeClient
-            self._client = TypeSafeClient(model=self.model)
+            from ragcmp.clients import jev_client
+            self._client = jev_client(self.cfg)
         return self._client
 
     def build_request(self, query: str, candidates: list[dict]) -> tuple[dict, dict]:
@@ -40,10 +41,12 @@ class JevReranker(Reranker):
         resp = self.client.system_one(state=state, questions=questions)
         latency = time.perf_counter() - t0
         scores = [float(resp.answers[f"p{i}"].noul) for i in range(len(candidates))]
+        cost = getattr(resp.usage, "cost", None)  # added by OpenRouter
         return {
             "scores": scores,
             "latency_s": latency,
             "input_tokens": int(resp.usage.input_tokens),
+            "cost_usd": float(cost) if cost is not None else None,
             "model": resp.model,
         }
 
@@ -61,5 +64,5 @@ class JevReranker(Reranker):
             latency_s=val["latency_s"],
             input_tokens=val["input_tokens"],
             cached=cached,
-            extra={"model": val["model"]},
+            extra={"model": val["model"], "cost_usd": val.get("cost_usd")},
         )

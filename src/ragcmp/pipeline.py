@@ -64,6 +64,7 @@ def run_split(cfg: dict, split: str, variants=VARIANTS, limit: int | None = None
                     **retrieval_metrics(ranked_ids, q["gold"], pool_k=pool_k),
                     "rerank_latency_s": res.latency_s,
                     "rerank_input_tokens": res.input_tokens,
+                    "rerank_cost_usd": res.extra.get("cost_usd"),
                     "rerank_cached": res.cached,
                 }
                 if gen is not None:
@@ -74,6 +75,7 @@ def run_split(cfg: dict, split: str, variants=VARIANTS, limit: int | None = None
                         "f1": f1_score(g["answer"], q["answer"]),
                         "gen_input_tokens": g["input_tokens"],
                         "gen_output_tokens": g["output_tokens"],
+                        "gen_cost_usd": g.get("cost_usd"),
                         "gen_latency_s": g["latency_s"],
                         "gen_cached": g_cached,
                     })
