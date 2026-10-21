@@ -1,0 +1,11 @@
+openai>=1.50
+chromadb>=0.5
+sentence-transformers>=3.0
+typesafe-sdk
+datasets>=2.20
+python-dotenv>=1.0
+pyyaml>=6.0
+numpy>=1.26
+scipy>=1.11
+tqdm>=4.66
+pytest>=8.0

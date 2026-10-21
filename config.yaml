@@ -1,0 +1,41 @@
+seed: 42
+n_dev: 50
+n_test: 300
+
+paths:
+  data_dir: data
+  chroma_dir: chroma
+  cache_dir: .cache
+  results_dir: results
+
+embedding:
+  model: text-embedding-3-small
+  batch_size: 256
+
+retrieval:
+  collection: hotpot_pool
+  top_k: 30
+
+rerank:
+  final_k: 5
+  bge:
+    model: BAAI/bge-reranker-base
+    batch_size: 32
+    max_length: 512
+  jev:
+    model: jev-latest
+    instructions: >-
+      Does `passages[{i}]` contain information needed to answer `query`,
+      either directly or as a bridge fact that leads to the answer?
+
+generation:
+  model: gpt-6-luna
+  reasoning_effort: none
+  max_output_tokens: 64
+  # USD per 1M tokens, for cost reporting
+  price_in: 0.10
+  price_out: 0.50
+
+pricing:
+  embedding_per_m: 0.02
+  jev_per_m: 0.042
