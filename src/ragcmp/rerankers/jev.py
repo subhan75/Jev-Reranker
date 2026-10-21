@@ -8,6 +8,18 @@ from ragcmp.cache import Cache
 from ragcmp.rerankers.base import Reranker, RerankResult, order_by_scores
 
 
+def _billed_cost(resp) -> float | None:
+    """OpenRouter adds usage.cost, but the SDK's Usage model drops it; read the raw body."""
+    cost = getattr(resp.usage, "cost", None)
+    if cost is None:
+        raw = getattr(resp, "raw_http_response", None)
+        try:
+            cost = raw.json().get("usage", {}).get("cost") if raw is not None else None
+        except Exception:
+            cost = None
+    return float(cost) if cost is not None else None
+
+
 class JevReranker(Reranker):
     name = "jev"
 
@@ -41,7 +53,7 @@ class JevReranker(Reranker):
         resp = self.client.system_one(state=state, questions=questions)
         latency = time.perf_counter() - t0
         scores = [float(resp.answers[f"p{i}"].noul) for i in range(len(candidates))]
-        cost = getattr(resp.usage, "cost", None)  # added by OpenRouter
+        cost = _billed_cost(resp)
         return {
             "scores": scores,
             "latency_s": latency,

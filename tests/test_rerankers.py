@@ -65,3 +65,12 @@ def test_jev_request_shape_ranking_and_cache(tmp_path):
     assert res.input_tokens == 123 and res.extra["model"] == "jev-x"
     client.scores = [1, 0, 0, 0]
     assert [c["id"] for c in r.rerank("who?", CANDS).ranked][0] == "b"  # served from cache
+
+
+def test_jev_reads_openrouter_cost_from_raw_body():
+    from ragcmp.rerankers.jev import _billed_cost
+
+    raw = SimpleNamespace(json=lambda: {"usage": {"input_tokens": 10, "cost": 4.2e-07}})
+    resp = SimpleNamespace(usage=SimpleNamespace(input_tokens=10), raw_http_response=raw)
+    assert _billed_cost(resp) == 4.2e-07
+    assert _billed_cost(SimpleNamespace(usage=SimpleNamespace(), raw_http_response=None)) is None
