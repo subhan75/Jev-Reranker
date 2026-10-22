@@ -1,7 +1,52 @@
-# RAG reranker comparison: BGE cross-encoder vs Jev
+# Can Jev make AI search more accurate? Jev vs the standard re-ranker (BGE)
 
-Does [Jev](https://docs.typesafe.ai/introduction) (TypeSafe's typed-decision "System One" model) rerank retrieved
-passages better than a standard BERT cross-encoder (`BAAI/bge-reranker-base`)?
+When an AI answers a question from a pile of documents (a setup called RAG), it first searches for passages and then
+reads the best ones. A **re-ranker** is a second pass that re-orders the search results so the most useful passages
+come first. This project tests whether a new model called **Jev** does that job better than **BGE**, a widely used
+standard re-ranker.
+
+## Results at a glance
+
+300 hard questions, each needing facts from **two** different Wikipedia paragraphs. Same search, same AI writer, same
+questions for everyone. The only thing that changed was the re-ranker.
+
+| | No re-ranking | BGE (standard) | Jev |
+|---|---|---|---|
+| Both needed sources in the top 5 | 69% | 86% | 90% |
+| Answers that exactly match | 46% | 52% | 55% |
+| Answer quality score (partial credit, out of 100) | 60 | 68 | 73 |
+| Questions the AI gave up on ("I don't know") | 20% | 11% | 8% |
+| Time to re-rank one question | none | 8 seconds* | 0.24 seconds |
+| Cost per 1,000 questions | none | $0 (runs on your own computer) | about $0.25 |
+
+\*BGE timed on a laptop without a graphics card. On a GPU it would be much faster.
+
+### What it means
+
+- **A re-ranker clearly helps.** Both versions found both needed sources far more often than plain search
+  (69% to 86% and 90%), and gave more correct answers.
+- **Jev came out ahead of BGE, but only by a little.** About 4 points on the answer quality score (73 vs 68). That is
+  the one result that is statistically solid. The 3-point leads on exact matches and on finding both sources point the
+  same way, but they are close enough that chance could explain them.
+- **Jev's edge is on questions that connect two facts** (for example, "who directed the film that starred the person
+  who...?"). There it found both sources 89% of the time against 84% for BGE. On the 49 simple comparison questions
+  BGE did slightly better (49 of 49 vs 46 of 49), though that is too few questions to draw a conclusion from.
+- **The AI writer was equally good in every setup.** Once it had both sources, it answered correctly about 57% to 59%
+  of the time regardless of the re-ranker. Jev's advantage is simply getting the right sources in front of it more often.
+- **Jev is much faster and costs a fraction of a cent per question.** BGE costs nothing in fees but needs your own
+  computing power.
+
+### Honest limits
+
+- This is one test: 300 questions from one dataset (HotpotQA), run once.
+- Jev's scores vary slightly if you ask it the same thing twice. We didn't measure how much that affects results.
+- Neither re-ranker was fine-tuned. A bigger BGE model or a better-worded Jev instruction could change the gap.
+- An early check on the first 150 questions showed a bigger Jev lead than the full 300 did. Small tests can overstate
+  small differences.
+
+---
+
+# Technical details
 
 ## Setup
 
@@ -46,15 +91,7 @@ Metrics: Recall@1/3/5/30, MRR, nDCG@5, **both-gold@5** (both supporting paragrap
 rerank latency, context tokens and cost. Differences are reported as paired bootstrap 95% CIs (10k resamples),
 with exact McNemar tests for binary metrics.
 
-## Caveats
-
-- **Jev scores are not bit-for-bit deterministic.** They come back at 2-decimal resolution and vary by up to
-  ~0.1 between identical calls; in spot checks gold-paragraph positions were stable and only near-zero tail
-  passages reshuffled. Ties are broken by first-stage order. The cache freezes one sample per query, so a
-  given run is reproducible from `.cache/`.
-- First-stage recall caps both rerankers: a gold paragraph missing from the top-30 cannot be recovered.
-
-## Results
+## Detailed results
 
 300 HotpotQA distractor test questions (all "hard" level; 251 bridge, 49 comparison), run once, nothing tuned on them.
 Both rerankers saw the same 30 first-stage candidates and fed the same generator with their top 5.
@@ -95,9 +132,11 @@ recover. That caps both-gold@5 at 0.930.
 
 ### Caveats
 
-- **Jev scores are not deterministic** (identical calls varied by up to ~0.1 on a spot check). Each query was scored
-  once and cached, so these results are one draw. The confidence intervals cover question sampling, not Jev's own
-  call-to-call noise, which was not quantified.
+- **Jev scores are not deterministic** (identical calls varied by up to ~0.1 on a spot check; they come back at
+  2-decimal resolution, and ties are broken by first-stage order). Each query was scored once and cached, so these
+  results are one draw. The confidence intervals cover question sampling, not Jev's own call-to-call noise, which was
+  not quantified.
+- First-stage recall caps both rerankers: a gold paragraph missing from the top-30 cannot be recovered.
 - One dataset (HotpotQA distractor, hard questions), a pooled corpus of ~3,500 paragraphs, one embedding model,
   one generator, one run. Both rerankers were used zero-shot with default settings; neither was tuned, and the Jev
   yes/no question wording is a first draft. A larger BGE model or a tuned Jev prompt could change the gap.
